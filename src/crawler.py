@@ -10,6 +10,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from config import DOMAINS, PRODUCT_PATTERNS
 from utils import is_product_url, is_same_domain, get_absolute_url
 
+
 def setup_driver():
     """Set up headless Chrome WebDriver."""
     options = Options()
@@ -21,6 +22,20 @@ def setup_driver():
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 
+
+def scroll_to_bottom(driver, wait_time=2, max_scrolls=10):
+    """Scroll to the bottom of the page gradually."""
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    for i in range(max_scrolls):
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(wait_time)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+
 def crawl_page(url, base_url, driver, visited_urls, product_urls, depth=0, max_depth=2):
     """Crawl a single page and extract potential product URLs."""
     try:
@@ -29,7 +44,7 @@ def crawl_page(url, base_url, driver, visited_urls, product_urls, depth=0, max_d
         visited_urls.add(url)
 
         driver.get(url)
-        time.sleep(2)  # Adjust as needed for JS-heavy pages
+        scroll_to_bottom(driver, wait_time=2, max_scrolls=10)
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         links = soup.find_all('a', href=True)
@@ -45,6 +60,7 @@ def crawl_page(url, base_url, driver, visited_urls, product_urls, depth=0, max_d
 
     except Exception as e:
         print(f"[ERROR] Failed to crawl {url}: {e}")
+
 
 def crawl_domain(domain):
     print(f"[START] Crawling {domain}")
@@ -84,6 +100,6 @@ def main():
     print(f"[STATS] Total product URLs: {len(df)}")
     print(f"[TIME] Total time: {time.time() - start_time:.2f}s")
 
+
 if __name__ == "__main__":
-    
     main()
