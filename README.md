@@ -8,9 +8,6 @@ This project implements a web crawler using **Selenium** to scrape data from web
 - **🔁 Resume from Last Crawl**
   - Automatically resumes the crawl process from where it was interrupted, ensuring robustness against unexpected shutdowns or network issues.
 
-- **🏷️ Category & Metadata Scraping**
-  - Extracts and categorizes metadata such as titles, descriptions, tags, and other relevant information.
-
 - **⚙️ Customizable Scraping Logic**
   - The crawling logic can be easily modified to suit different websites or specific scraping requirements.
 
