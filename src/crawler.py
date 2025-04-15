@@ -14,11 +14,8 @@ from utils import is_product_url, is_same_domain, get_absolute_url
 def setup_driver():
     """Set up headless Chrome WebDriver."""
     options = Options()
-    options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 
@@ -69,7 +66,7 @@ def crawl_domain(domain):
     product_urls = set()
 
     try:
-        crawl_page(domain, domain, driver, visited_urls, product_urls)
+        crawl_page(domain, domain, driver, visited_urls, product_urls,max_depth=3)
     except Exception as e:
         print(f"[ERROR] Failed to crawl domain {domain}: {e}")
         return []
