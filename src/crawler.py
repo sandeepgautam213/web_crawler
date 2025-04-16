@@ -65,34 +65,33 @@ def load_existing_product_urls(domain):
     return set()
 
 
-def crawl_page_iterative(start_url, base_url, driver, product_urls, max_depth=2, domain_name=None):
-    """
-    Iteratively crawl a website starting from the given URL using BFS.
-    Product URLs are collected and saved periodically.
-    """
+def crawl_page_parallel(start_url, base_url, product_urls, domain_name=None, max_depth=2):
     visited_urls = set(product_urls)
     queue = deque([(start_url, 0)])
 
-    while queue:
-        url, depth = queue.popleft()
+    def crawl_single_page(url_depth):
+        url, depth = url_depth
+        local_product_urls = set()
+        local_links = []
+
         if url in visited_urls or depth > max_depth:
-            continue
+            return local_product_urls, local_links
+
         visited_urls.add(url)
 
+        driver = setup_driver()
         try:
             driver.get(url)
             scroll_to_bottom(driver, wait_time=2, max_scrolls=10)
-        except InvalidSessionIdException:
-            print(f"[ERROR] Invalid session for {url}")
-            break
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
         except Exception as e:
             print(f"[ERROR] Failed to load {url}: {e}")
-            continue
+            driver.quit()
+            return local_product_urls, local_links
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        links = soup.find_all('a', href=True)
+        driver.quit()
 
-        for link in links:
+        for link in soup.find_all('a', href=True):
             href = link['href']
             full_url = get_absolute_url(base_url, href)
 
@@ -102,32 +101,48 @@ def crawl_page_iterative(start_url, base_url, driver, product_urls, max_depth=2,
                 continue
 
             if is_product_url(full_url, PRODUCT_PATTERNS):
-                product_urls.add(full_url)
+                local_product_urls.add(full_url)
             else:
-                queue.append((full_url, depth + 1))
+                local_links.append((full_url, depth + 1))
 
-        if domain_name:
-            save_partial_csv(product_urls, domain_name)
+        return local_product_urls, local_links
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        while queue:
+            batch = list(queue)
+            queue.clear()
+
+            future_to_url = {executor.submit(crawl_single_page, url_depth): url_depth for url_depth in batch}
+
+            for future in future_to_url:
+                try:
+                    new_products, new_links = future.result()
+                    product_urls.update(new_products)
+                    queue.extend(new_links)
+                except Exception as e:
+                    print(f"[ERROR] Exception during crawling: {e}")
+
+            if domain_name:
+                save_partial_csv(product_urls, domain_name)
 
 
 def crawl_domain(domain):
     """
-    Launches the crawler for a single domain, handling setup and teardown.
+    Launches the crawler for a single domain with internal parallel crawling.
     """
     print(f"[START] Crawling {domain}")
-    driver = setup_driver()
     product_urls = load_existing_product_urls(domain)
 
     try:
-        crawl_page_iterative(domain, domain, driver, product_urls, max_depth=3, domain_name=domain)
+        crawl_page_parallel(domain, domain, product_urls, domain_name=domain, max_depth=3)
     except Exception as e:
         print(f"[ERROR] Failed to crawl domain {domain}: {e}")
     finally:
         save_partial_csv(product_urls, domain)
-        driver.quit()
 
     print(f"[DONE] Crawled {domain} — Found {len(product_urls)} product URLs")
     return list(product_urls)
+
 
 
 def main():
